@@ -81,7 +81,11 @@ While the Twilio account is in trial mode, the caller's number must be added as 
 
 ## Deployment
 
-For production deployment at **`https://ai.traxccel.com/legalEdge`** — the loopback uvicorn on `127.0.0.1:8091`, the systemd unit, the nginx `/legalEdge/` subpath reverse proxy (with WebSocket upgrade and prefix stripping), the Vite `base` path, and the Twilio inbound-webhook wiring — see **[`docs/SPEC.md` section 9](docs/SPEC.md)**.
+Full step-by-step server deployment at **`https://ai.traxccel.com/legalEdge`** —
+clone, Python venv, `.env`, the systemd unit on `127.0.0.1:8091`, the nginx
+`/legalEdge/` subpath reverse proxy (WebSocket upgrade + the Twilio-endpoint auth
+carve-out), and the Twilio inbound-webhook wiring — is in **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
+The demo needs **no `npm` build** (the backend serves the HTML report pages directly).
 
 ---
 
