@@ -1,0 +1,7 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+google-genai==1.*
+python-dotenv==1.*
+pytz==2024.*
+python-multipart==0.0.*   # Starlette request.form() for the Twilio POST
+# stdlib: sqlite3. No sqlalchemy, no twilio SDK, no asyncpg.

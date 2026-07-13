@@ -1,0 +1,20 @@
+# ── Python ──
+backend/.venv/
+**/__pycache__/
+*.pyc
+backend/.env
+
+# SQLite (runtime data)
+backend/*.db
+backend/*.db-wal
+backend/*.db-shm
+*.db
+*.db-wal
+*.db-shm
+
+# ── Node / frontend ──
+frontend/node_modules/
+frontend/dist/
+
+# ── Env / secrets ──
+.env
