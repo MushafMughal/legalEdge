@@ -42,7 +42,7 @@ class Settings:
 
         # ── Firm identity / conversation ─────────────────────────────────────
         self.FIRM_NAME = _get("FIRM_NAME", "Sutliff & Stout Injury & Accident Law Firm")
-        self.AGENT_NAME = _get("AGENT_NAME", "Jordan")
+        self.AGENT_NAME = _get("AGENT_NAME", "LegalEdge")
         self.INTAKE_TIMEZONE = _get("INTAKE_TIMEZONE", "America/New_York")
 
         # ── SQLite (relative path so the folder relocates cleanly) ───────────
