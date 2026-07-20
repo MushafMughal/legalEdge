@@ -28,6 +28,18 @@ PRACTICE_LABELS = {
     "other": "Other",
 }
 
+FIRM_FIT_LABELS = {
+    "likely_accepted": "Likely a fit",
+    "needs_review": "Needs review",
+    "likely_declined": "Likely not a fit",
+}
+PRIORITY_LABELS = {"same_day": "Same-day callback", "standard": "Standard callback", "low": "Low priority"}
+_PRIORITY_COLORS = {
+    "same_day": ("#fb7185", "rgba(244,63,94,.15)"),
+    "standard": ("#7fb3e8", "rgba(46,125,209,.15)"),
+    "low": ("#8593a8", "rgba(133,147,168,.14)"),
+}
+
 # Traxccel status colours on the dark theme.
 _STATUS = {
     "captured": ("Captured", "#7fb3e8", "rgba(46,125,209,.15)"),
@@ -35,19 +47,6 @@ _STATUS = {
     "failed": ("Push failed", "#fb7185", "rgba(244,63,94,.15)"),
     "in_call": ("In call", "#8593a8", "rgba(133,147,168,.14)"),
 }
-
-
-def _data_uri(name: str) -> str:
-    """Embed a bundled asset as base64 so the pages are self-contained (work under
-    any deploy subpath, and the folder relocates cleanly)."""
-    try:
-        return "data:image/png;base64," + base64.b64encode((_ASSETS / name).read_bytes()).decode()
-    except Exception:  # noqa: BLE001
-        return ""
-
-
-_LOGO_URI = _data_uri("traxccel-logo.png")
-_MARK_URI = _data_uri("traxccel-mark.png")
 
 _CSS = """
 *{box-sizing:border-box}
@@ -125,6 +124,21 @@ def _status_pill(status: str) -> str:
     return f'<span class="pill" style="color:{fg};background:{bg}">{label}</span>'
 
 
+def _priority_pill(p) -> str:
+    if not p:
+        return ""
+    fg, bg = _PRIORITY_COLORS.get(p, ("#8593a8", "rgba(133,147,168,.14)"))
+    return f'<span class="pill" style="color:{fg};background:{bg}">{PRIORITY_LABELS.get(p, _esc(p))}</span>'
+
+
+def _yn(v):
+    if v is True:
+        return "Yes"
+    if v is False:
+        return "No"
+    return None
+
+
 def _brand() -> str:
     if _LOGO_URI:
         logo = f'<img src="{_LOGO_URI}" alt="Traxccel">'
@@ -137,6 +151,19 @@ def _brand() -> str:
         '<span class="tag">LegalEdge · Client Intake</span>'
         "</div>"
     )
+
+
+def _data_uri(name: str) -> str:
+    """Embed a bundled asset as base64 so the pages are self-contained (work under
+    any deploy subpath, and the folder relocates cleanly)."""
+    try:
+        return "data:image/png;base64," + base64.b64encode((_ASSETS / name).read_bytes()).decode()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+_LOGO_URI = _data_uri("traxccel-logo.png")
+_MARK_URI = _data_uri("traxccel-mark.png")
 
 
 def _page(title: str, body: str) -> str:
@@ -163,8 +190,10 @@ def _kv(rows) -> str:
 def render_intake_html(intake: dict) -> str:
     contact = intake.get("contact_json") or {}
     case = intake.get("case_json") or {}
+    injury = case.get("injury") or {}
     name = _esc(intake.get("caller_name") or contact.get("full_name") or "Unknown caller")
     status = intake.get("status")
+    priority = case.get("callback_priority")
 
     addr = contact.get("mailing_address") or {}
     addr_str = ", ".join(
@@ -190,11 +219,16 @@ def render_intake_html(intake: dict) -> str:
         ("Mailing address", addr_str),
     ])
 
+    incident = _esc(case.get("incident_date") or intake.get("incident_date"))
+    if case.get("incident_time"):
+        incident = (incident + " · " if incident and incident != "" else "") + _esc(case.get("incident_time"))
     case_card = _kv([
         ("Practice area", _practice(case.get("practice_area") or intake.get("practice_area"))
          + (f" — {_esc(case.get('practice_area_other_text'))}" if case.get("practice_area_other_text") else "")),
+        ("Sub-type", _esc(case.get("case_subtype"))),
+        ("Caller's role", _esc(case.get("caller_role"))),
         ("Urgency", urgency_html or "—"),
-        ("Incident date", _esc(case.get("incident_date") or intake.get("incident_date"))),
+        ("Incident date / time", incident),
         ("Location / jurisdiction", _esc(case.get("location") or intake.get("location"))),
         ("Other / opposing parties", parties_str),
         ("Prior/current attorney", ("Yes" + (f" — {_esc(case.get('attorney_status_notes'))}" if case.get("attorney_status_notes") else "")) if conflict else None),
@@ -203,6 +237,44 @@ def render_intake_html(intake: dict) -> str:
 
     matter = _esc(case.get("situation_description") or intake.get("matter_summary"))
     matter_html = f'<div class="big"><div class="summary">{matter}</div></div>' if matter else ""
+
+    # ── Personal-injury / accident layer (only rendered when captured) ──
+    injury_card = ""
+    accident_card = ""
+    if injury:
+        injury_card = '<div class="card"><h2>Injuries &amp; treatment</h2>' + _kv([
+            ("Injuries", _esc(injury.get("injuries"))),
+            ("Serious-injury flags", _esc(injury.get("serious_injury_flags"))),
+            ("Treatment started", _yn(injury.get("treatment_started"))),
+            ("First treatment", _esc(injury.get("first_treatment"))),
+            ("Treatment details", _esc(injury.get("treatment_details"))),
+            ("Ongoing treatment", _yn(injury.get("ongoing_treatment"))),
+            ("Still symptomatic", _yn(injury.get("still_symptomatic"))),
+            ("Impact on daily life", _esc(injury.get("impact_on_daily_life"))),
+            ("Lost income / missed work", _esc(injury.get("lost_income"))),
+            ("Prior injury history", _esc(injury.get("prior_injury_history"))),
+        ]) + "</div>"
+        docs = injury.get("evidence_and_documents") or []
+        docs_str = ", ".join(_esc(x) for x in docs if x) if isinstance(docs, list) else _esc(docs)
+        accident_card = '<div class="card"><h2>Accident, insurance &amp; evidence</h2>' + _kv([
+            ("Police involved", _yn(injury.get("police_involved"))),
+            ("Responding agency", _esc(injury.get("police_agency"))),
+            ("Case / crash number", _esc(injury.get("police_case_number"))),
+            ("Caller's insurance", _esc(injury.get("caller_insurance"))),
+            ("Other party's insurance", _esc(injury.get("other_party_insurance"))),
+            ("Property / vehicle damage", _esc(injury.get("property_damage"))),
+            ("Out-of-pocket expenses", _esc(injury.get("out_of_pocket_expenses"))),
+            ("Documents available", docs_str),
+        ]) + "</div>"
+
+    # ── Preliminary intake assessment (firm fit + callback priority + summary) ──
+    assessment_card = ""
+    if case.get("firm_fit") or priority or case.get("assessment_summary"):
+        assessment_card = '<div class="card"><h2>Intake assessment</h2>' + _kv([
+            ("Firm fit", _esc(FIRM_FIT_LABELS.get(case.get("firm_fit"), case.get("firm_fit")))),
+            ("Callback priority", _priority_pill(priority) if priority else None),
+            ("Summary", _esc(case.get("assessment_summary"))),
+        ]) + "</div>"
 
     push_card = _kv([
         ("Status", _status_pill(status)),
@@ -231,15 +303,17 @@ def render_intake_html(intake: dict) -> str:
     else:
         transcript_html = ""
 
+    priority_hero = f'<div style="margin-top:8px">{_priority_pill(priority)}</div>' if priority else ""
     body = (
         '<a class="back" href="../">&larr; All intakes</a>'
         '<div class="hero" style="margin-top:12px"><div class="top">'
         f'<div><h1>{name}</h1><div class="sub">{_practice(case.get("practice_area") or intake.get("practice_area"))} · captured {_fmt_dt(intake.get("completed_at") or intake.get("created_at"))}</div></div>'
-        f'<div>{_status_pill(status)}</div></div>'
+        f'<div style="text-align:right">{_status_pill(status)}{priority_hero}</div></div>'
         f'{matter_html}</div>'
         '<div class="grid">'
         f'<div class="card"><h2>Contact</h2>{contact_card}</div>'
         f'<div class="card"><h2>Matter</h2>{case_card}</div>'
+        f'{injury_card}{accident_card}{assessment_card}'
         f'<div class="card"><h2>LegalEdge push</h2>{push_card}</div>'
         f'<div class="card"><h2>Call</h2>{call_card}</div>'
         '</div>'
@@ -258,21 +332,26 @@ def render_index_html(intakes: list) -> str:
         )
         return _page("LegalEdge — Intakes", body)
 
-    rows = "".join(
-        f'<tr class="clickable" onclick="location.href=\'intake/{_esc(i.get("id"))}\'">'
-        f'<td class="name">{_esc(i.get("caller_name") or "Unknown")}</td>'
-        f'<td class="muted">{_esc(i.get("contact_phone") or i.get("from_number") or "—")}</td>'
-        f'<td>{_practice(i.get("practice_area"))}</td>'
-        f'<td class="muted">{_fmt_dt(i.get("completed_at") or i.get("created_at"))}</td>'
-        f'<td>{_status_pill(i.get("status"))}</td>'
-        f'<td><a href="intake/{_esc(i.get("id"))}">View &rarr;</a></td></tr>'
-        for i in intakes
-    )
+    def _row(i):
+        pill = _priority_pill(i.get("callback_priority")) or '<span class="muted">—</span>'
+        iid = _esc(i.get("id"))
+        return (
+            f'<tr class="clickable" onclick="location.href=\'intake/{iid}\'">'
+            f'<td class="name">{_esc(i.get("caller_name") or "Unknown")}</td>'
+            f'<td class="muted">{_esc(i.get("contact_phone") or i.get("from_number") or "—")}</td>'
+            f'<td>{_practice(i.get("practice_area"))}</td>'
+            f'<td class="muted">{_fmt_dt(i.get("completed_at") or i.get("created_at"))}</td>'
+            f'<td>{_status_pill(i.get("status"))}</td>'
+            f'<td>{pill}</td>'
+            f'<td><a href="intake/{iid}">View &rarr;</a></td></tr>'
+        )
+
+    rows = "".join(_row(i) for i in intakes)
     body = (
         '<div class="hero"><h1>Client intakes</h1>'
         f'<div class="sub">{len(intakes)} captured intake call(s). Click a row to open the full report.</div></div>'
         '<table style="margin-top:16px"><thead><tr>'
-        '<th>Caller</th><th>Phone</th><th>Practice area</th><th>Captured</th><th>Status</th><th></th>'
+        '<th>Caller</th><th>Phone</th><th>Practice area</th><th>Captured</th><th>Status</th><th>Priority</th><th></th>'
         f'</tr></thead><tbody>{rows}</tbody></table>'
     )
     return _page("LegalEdge — Intakes", body)

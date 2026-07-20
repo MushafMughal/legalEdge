@@ -23,7 +23,11 @@ import legaledge_client
 import store
 from audio import GeminiToTwilioResampler, TwilioToGeminiResampler
 from gemini_live import GeminiLivePhone
-from intake_tools import submit_case_details_tool, submit_contact_details_tool
+from intake_tools import (
+    submit_case_details_tool,
+    submit_contact_details_tool,
+    submit_injury_details_tool,
+)
 from prompts import build_intake_prompt
 
 logger = logging.getLogger(__name__)
@@ -80,54 +84,41 @@ class TwilioPhoneHandler:
             model=config.settings.GEMINI_LIVE_MODEL,
             input_sample_rate=16000,
             system_instruction=prompt,
-            tools=[submit_contact_details_tool(), submit_case_details_tool()],
+            tools=[
+                submit_contact_details_tool(),
+                submit_case_details_tool(),
+                submit_injury_details_tool(),
+            ],
             tool_mapping={
                 "submit_contact_details": self._submit_contact_details,
                 "submit_case_details": self._submit_case_details,
+                "submit_injury_details": self._submit_injury_details,
             },
             voice=config.settings.GEMINI_VOICE,
         )
 
-    # ── tools (silent; return a short confirmation, accept **kw for forward-compat) ──
-    async def _submit_contact_details(self, full_name="", phone="", phone_from_caller_id=False,
-            email="", mailing_address=None, preferred_contact_method="",
-            best_time_to_contact="", **kw) -> str:
+    # ── tools (silent; merge whatever the model sends so the schema can grow without
+    #    touching these handlers; called repeatedly to enrich as facts come out) ──
+    async def _submit_contact_details(self, **kwargs) -> str:
         s = self.intake_sessions[self.session_id]
-        s["contact"] = {
-            "full_name": full_name or None,
-            "phone": phone or s["caller_number"],
-            "phone_from_caller_id": bool(phone_from_caller_id),
-            "email": email or None,
-            "mailing_address": mailing_address or None,
-            "preferred_contact_method": preferred_contact_method or None,
-            "best_time_to_contact": best_time_to_contact or None,
-        }
-        logger.info("Contact details recorded (%s): %s", self.session_id, full_name)
+        s["contact"] = {**(s.get("contact") or {}), **kwargs}
+        # Default the callback number to the caller's own line if not captured.
+        if not s["contact"].get("phone"):
+            s["contact"]["phone"] = s.get("caller_number")
+        logger.info("Contact details recorded (%s): %s", self.session_id, kwargs.get("full_name"))
         return "Contact details recorded"
 
-    async def _submit_case_details(self, practice_area="", practice_area_other_text="",
-            situation_description="", location="", incident_date="", key_dates=None,
-            opposing_or_other_parties=None, has_current_or_prior_attorney=False,
-            attorney_status_notes="", urgency="", urgency_flag=False,
-            urgency_notes="", referral_source="", **kw) -> str:
+    async def _submit_case_details(self, **kwargs) -> str:
         s = self.intake_sessions[self.session_id]
-        s["case"] = {
-            "practice_area": practice_area or None,
-            "practice_area_other_text": practice_area_other_text or None,
-            "situation_description": situation_description or None,
-            "location": location or None,
-            "incident_date": incident_date or None,
-            "key_dates": key_dates or [],
-            "opposing_or_other_parties": opposing_or_other_parties or [],
-            "has_current_or_prior_attorney": bool(has_current_or_prior_attorney),
-            "attorney_status_notes": attorney_status_notes or None,
-            "urgency": urgency or None,
-            "urgency_flag": bool(urgency_flag),
-            "urgency_notes": urgency_notes or None,
-            "referral_source": referral_source or None,
-        }
-        logger.info("Case details recorded (%s): %s", self.session_id, practice_area)
+        s["case"] = {**(s.get("case") or {}), **kwargs}
+        logger.info("Case details recorded (%s): %s", self.session_id, kwargs.get("practice_area"))
         return "Case details recorded"
+
+    async def _submit_injury_details(self, **kwargs) -> str:
+        s = self.intake_sessions[self.session_id]
+        s["injury"] = {**(s.get("injury") or {}), **kwargs}
+        logger.info("Injury details recorded (%s)", self.session_id)
+        return "Injury details recorded"
 
     # ── audio in (non-blocking, drop-oldest when full) ──────────────────────────
     def _enqueue_audio(self, chunk: bytes):

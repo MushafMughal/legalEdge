@@ -135,7 +135,13 @@ def save_intake(session: dict) -> str:
     )
 
     contact_json = json.dumps(session["contact"]) if session.get("contact") else None
-    case_json = json.dumps(session["case"]) if session.get("case") else None
+    # Fold the personal-injury layer into case_json under an "injury" key so the whole
+    # matter (classification, assessment, and injury facts) travels in one blob — no
+    # schema change needed as the intake grows.
+    case_full = dict(session.get("case") or {})
+    if session.get("injury"):
+        case_full["injury"] = session["injury"]
+    case_json = json.dumps(case_full) if case_full else None
     transcript = json.dumps(session.get("transcripts") or [])
 
     with _lock:
@@ -241,7 +247,15 @@ def list_intakes(
     with _lock:
         cur = _conn.execute(sql, params)
         rows = cur.fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(r)
+        case = _loads(d.get("case_json")) or {}
+        # Surface the triage fields for the dashboard list without a schema change.
+        d["callback_priority"] = case.get("callback_priority")
+        d["firm_fit"] = case.get("firm_fit")
+        out.append(d)
+    return out
 
 
 # ── serialization to the §7.4 wire shapes ────────────────────────────────────

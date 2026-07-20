@@ -19,3 +19,6 @@ frontend/dist/
 
 # ── Env / secrets ──
 .env
+
+# ── Reference docs dropped into the folder (not part of the app) ──
+*.pdf

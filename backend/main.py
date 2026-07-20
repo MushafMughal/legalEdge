@@ -186,6 +186,7 @@ async def voice(request: Request):
         "twilio_call_sid": form.get("CallSid"),
         "contact": None,
         "case": None,
+        "injury": None,
         "transcripts": [],
         "status": "connecting",
         "stream_secret": stream_secret,
