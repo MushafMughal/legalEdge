@@ -41,7 +41,7 @@ class Settings:
         self.SUBPATH = _get("SUBPATH", "/legalEdge")
 
         # ── Firm identity / conversation ─────────────────────────────────────
-        self.FIRM_NAME = _get("FIRM_NAME", "Legal Edge")
+        self.FIRM_NAME = _get("FIRM_NAME", "Sutliff & Stout Injury & Accident Law Firm")
         self.AGENT_NAME = _get("AGENT_NAME", "Jordan")
         self.INTAKE_TIMEZONE = _get("INTAKE_TIMEZONE", "America/New_York")
 

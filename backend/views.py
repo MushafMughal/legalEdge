@@ -39,6 +39,15 @@ _PRIORITY_COLORS = {
     "standard": ("#7fb3e8", "rgba(46,125,209,.15)"),
     "low": ("#8593a8", "rgba(133,147,168,.14)"),
 }
+INCIDENT_LABELS = {
+    "motor_vehicle": "Motor vehicle accident",
+    "commercial_trucking": "Commercial trucking accident",
+    "workplace_industrial": "Workplace / industrial",
+    "medical_negligence": "Medical negligence",
+    "premises": "Premises injury",
+    "product": "Product injury",
+    "other": "Other",
+}
 
 # Traxccel status colours on the dark theme.
 _STATUS = {
@@ -89,6 +98,11 @@ tr.clickable:hover td{background:#131d31}
 .muted{color:#8593a8}
 .empty{text-align:center;color:#8593a8;padding:60px 20px;background:#0f1729;border:1px dashed #243149;border-radius:14px}
 .flag{display:inline-block;font-size:11px;font-weight:700;color:#fb7185;background:rgba(244,63,94,.13);padding:3px 9px;border-radius:999px;margin-left:8px}
+.score{font-weight:800;font-size:16px}
+.chips-label{font-size:11px;color:#8593a8;text-transform:uppercase;letter-spacing:.08em;margin-top:14px;margin-bottom:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-block;font-size:12px;color:#c3cdda;background:#131d31;border:1px solid #1f2a40;border-radius:8px;padding:4px 10px}
+.chip.warn{color:#f4b8a0;background:#241419;border-color:#40222a}
 .foot{margin-top:30px;text-align:center;font-size:12px;color:#5b6981}
 .back{font-size:13px;color:#7fb3e8;font-weight:600}
 """
@@ -137,6 +151,29 @@ def _yn(v):
     if v is False:
         return "No"
     return None
+
+
+def _incident(code):
+    return INCIDENT_LABELS.get(code or "", _esc(code) if code else None)
+
+
+def _score_html(score):
+    if score in (None, ""):
+        return None
+    try:
+        s = int(score)
+    except (TypeError, ValueError):
+        return _esc(score)
+    color = "#34d399" if s >= 70 else ("#fbbf24" if s >= 40 else "#8593a8")
+    return f'<span class="score" style="color:{color}">{s}</span> <span class="muted">/ 100</span>'
+
+
+def _chips(items, warn=False):
+    items = [x for x in (items or []) if x]
+    if not items:
+        return None
+    cls = "chip warn" if warn else "chip"
+    return f'<div class="chips">' + "".join(f'<span class="{cls}">{_esc(x)}</span>' for x in items) + "</div>"
 
 
 def _brand() -> str:
@@ -225,6 +262,7 @@ def render_intake_html(intake: dict) -> str:
     case_card = _kv([
         ("Practice area", _practice(case.get("practice_area") or intake.get("practice_area"))
          + (f" — {_esc(case.get('practice_area_other_text'))}" if case.get("practice_area_other_text") else "")),
+        ("Accident type", _incident(case.get("incident_type"))),
         ("Sub-type", _esc(case.get("case_subtype"))),
         ("Caller's role", _esc(case.get("caller_role"))),
         ("Urgency", urgency_html or "—"),
@@ -267,14 +305,23 @@ def render_intake_html(intake: dict) -> str:
             ("Documents available", docs_str),
         ]) + "</div>"
 
-    # ── Preliminary intake assessment (firm fit + callback priority + summary) ──
+    # ── Preliminary intake assessment (score + firm fit + priority + drivers) ──
     assessment_card = ""
-    if case.get("firm_fit") or priority or case.get("assessment_summary"):
-        assessment_card = '<div class="card"><h2>Intake assessment</h2>' + _kv([
+    if case.get("firm_fit") or priority or case.get("assessment_summary") or case.get("case_score") not in (None, ""):
+        rows = _kv([
+            ("Case score", _score_html(case.get("case_score"))),
             ("Firm fit", _esc(FIRM_FIT_LABELS.get(case.get("firm_fit"), case.get("firm_fit")))),
             ("Callback priority", _priority_pill(priority) if priority else None),
             ("Summary", _esc(case.get("assessment_summary"))),
-        ]) + "</div>"
+        ])
+        extra = ""
+        factors = _chips(case.get("score_factors"))
+        flags = _chips(case.get("review_flags"), warn=True)
+        if factors:
+            extra += '<div class="chips-label">Positive factors</div>' + factors
+        if flags:
+            extra += '<div class="chips-label">Review flags</div>' + flags
+        assessment_card = f'<div class="card"><h2>Intake assessment</h2>{rows}{extra}</div>'
 
     push_card = _kv([
         ("Status", _status_pill(status)),

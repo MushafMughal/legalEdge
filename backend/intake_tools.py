@@ -67,7 +67,8 @@ def submit_case_details_tool() -> types.Tool:
                     "Save the matter/case information for attorney review. Call silently once "
                     "the practice area and a plain-language description are known, and again to "
                     "enrich fields (classification, dates, parties, deadlines) and to set the "
-                    "preliminary firm-fit / callback-priority assessment near the end. Do not "
+                    "preliminary assessment near the end — firm fit, callback priority, a 0-100 "
+                    "case score with its drivers and review flags, and a short summary. Do not "
                     "announce that you are saving data."
                 ),
                 parameters=S(
@@ -80,7 +81,12 @@ def submit_case_details_tool() -> types.Tool:
                             description="Best-fit matter type. Use 'other' if unclear or outside the listed areas.",
                         ),
                         "practice_area_other_text": S(type=T.STRING, description="If practice_area is 'other', a short label for the matter type."),
-                        "case_subtype": S(type=T.STRING, description="More specific classification within the practice area, e.g. 'motor vehicle accident — personal vehicle', 'rear-end collision', 'wrongful termination', 'child custody'."),
+                        "case_subtype": S(type=T.STRING, description="More specific classification, e.g. 'personal vehicle collision', 'rear-end', 'non-commercial vehicle collision'."),
+                        "incident_type": S(
+                            type=T.STRING,
+                            enum=["motor_vehicle", "commercial_trucking", "workplace_industrial", "medical_negligence", "premises", "product", "other"],
+                            description="For an injury/accident matter, the accident/injury category (maps to the firm's case types). Use 'other' if it is not an injury/accident matter.",
+                        ),
                         "caller_role": S(type=T.STRING, description="The caller's role in the incident if applicable, e.g. 'driver', 'passenger', 'pedestrian', 'cyclist', or 'calling on behalf of someone else'."),
                         "situation_description": S(type=T.STRING, description="Plain-language summary of the caller's situation, in their own words where possible. No legal conclusions."),
                         "location": S(type=T.STRING, description="City/state or jurisdiction where the matter arises, e.g. 'Cypress, TX'."),
@@ -112,6 +118,9 @@ def submit_case_details_tool() -> types.Tool:
                         "firm_fit": S(type=T.STRING, enum=["likely_accepted", "needs_review", "likely_declined"], description="Your preliminary, NON-LEGAL read on whether the matter fits the firm's typical caseload — for triage only."),
                         "callback_priority": S(type=T.STRING, enum=["same_day", "standard", "low"], description="How urgently the intake team should call back, based on injury severity, documentation, deadlines, and firm fit."),
                         "assessment_summary": S(type=T.STRING, description="A brief 2-4 sentence factual summary of the matter for the intake team and why the priority was set. No legal advice or merits assessment."),
+                        "case_score": S(type=T.INTEGER, description="Preliminary 0-100 intake-fit score (NOT a legal judgment): higher = firm-preferred case type with a reported injury, treatment started, documentation, law-enforcement involvement, and insurance identified."),
+                        "score_factors": S(type=T.ARRAY, description="Short positive drivers behind the score.", items=S(type=T.STRING, description="e.g. 'firm-preferred motor vehicle accident', 'injury reported', 'treatment started', 'police report available', 'both insurers identified'.")),
+                        "review_flags": S(type=T.ARRAY, description="Short deductions / items for the intake team to confirm.", items=S(type=T.STRING, description="e.g. 'only one medical visit', 'no imaging yet', 'confirm liability', 'confirm prior injury history'.")),
                     },
                     required=["practice_area", "situation_description"],
                 ),
