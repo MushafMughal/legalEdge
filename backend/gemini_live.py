@@ -65,18 +65,18 @@ class GeminiLivePhone:
             output_audio_transcription=types.AudioTranscriptionConfig(),
             realtime_input_config=types.RealtimeInputConfig(
                 turn_coverage="TURN_INCLUDES_ONLY_ACTIVITY",
-                # Tuned to be MORE patient than the Live API defaults for a noisy phone
-                # line: LOW start-sensitivity rejects background/line noise; LOW
-                # end-sensitivity + 900ms of trailing silence (ABOVE the ~800ms server
-                # default) let the caller finish and pause to recall a detail before the
-                # agent replies; prefix padding avoids clipping the first word. These are a
-                # directional starting point — the exact numbers should be tuned on a real
-                # call (bump silence toward 1000-1200 if it still cuts in; drop toward 600
-                # if it feels laggy).
+                # Turn-taking tuned on real calls. LOW start-sensitivity rejects
+                # background/line noise. LOW end-sensitivity is what stopped the agent
+                # cutting callers off, so it stays — it waits for a genuine end-of-speech
+                # signal rather than any brief pause. Because that guard is doing the work,
+                # the trailing-silence window is kept SHORT (600ms, below the ~800ms server
+                # default) so the reply comes back promptly instead of leaving dead air.
+                # If it ever cuts in again, raise silence toward 800; if it still feels
+                # slow, drop toward 500.
                 automatic_activity_detection=types.AutomaticActivityDetection(
                     start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_LOW,
                     end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_LOW,
-                    silence_duration_ms=900,
+                    silence_duration_ms=600,
                     prefix_padding_ms=300,
                 ),
             ),
